@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  clerkId       String         @unique
+  name          String?
+  email         String?
+  avatarUrl     String?
+  conversations Conversation[]
+  files         File[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Conversation {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String
+  title             String?
+  model             String?
+  contextWindowSize Int?
+  lastActivityAt    DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
+  messages          Message[]
+  versionGroups     VersionGroup[]
+}
+
+model VersionGroup {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  versions       String[]     @db.ObjectId
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  index          Int          @default(0)
+  messages       Message[]
+}
+
+enum Role {
+  user
+  assistant
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  versionGroupId String       @db.ObjectId
+  sender         String
+  content        String
+  role           Role
+  files          File[]
+  streaming      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  versionGroup   VersionGroup @relation(fields: [versionGroupId], references: [id], onDelete: Cascade)
+}
+
+model File {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String
+  conversationId String?  @db.ObjectId
+  messageId      String   @db.ObjectId
+  fileName       String
+  fileType       String
+  storageUrl     String
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [clerkId])
+  message        Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
