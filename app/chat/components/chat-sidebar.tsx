@@ -71,61 +71,46 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ conversations }) => {
   });
 
   return (
-    <Sidebar className="bg-[#181818] border-r border-zinc-800 group/sidebar">
+    <Sidebar className="group/sidebar">
       {mutation.isPending && <LoadingModal />}
 
       <SidebarContent className="flex flex-col h-full">
-        <div className="p-4 space-y-3 border-b border-zinc-800">
+        <div className="p-4 space-y-3 border-b">
           <Link href="/chat" className="block">
-            <div
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all cursor-pointer",
-                "text-zinc-300 hover:text-white hover:bg-[#303030]",
-                "group/new-chat"
-              )}
-            >
+            <Button variant="outline" className="w-full">
               <MessageSquare className="h-4 w-4 transition-transform group-hover/new-chat:scale-110" />
               <span className="text-sm font-medium">New chat</span>
-            </div>
+            </Button>
           </Link>
 
-          <div
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
-              "bg-[#202020] border border-zinc-700 text-zinc-300",
-              "focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500"
-            )}
-          >
-            <Search className="h-4 w-4 flex-shrink-0" />
-            <div className="flex-1">
+          <div className="relative">
+            <Button
+              variant="outline"
+              className="w-full justify-start px-3 py-2.5 h-auto pointer-events-none opacity-0"
+              aria-hidden="true"
+            >
+              <Search className="h-4 w-4 flex-shrink-0" />
+              <span className="text-sm font-medium">Search chats...</span>
+            </Button>
+            <div
+              className={cn(
+                "absolute inset-0 flex items-center gap-3 px-3 py-2.5 rounded-lg",
+                "bg-background border border-input text-foreground"
+              )}
+            >
+              <Search className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
               <Input
                 placeholder="Search chats..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={cn(
-                  "border-0 bg-transparent p-0 h-auto font-medium",
-                  "placeholder:text-zinc-400 focus-visible:ring-0 focus-visible:ring-offset-0"
-                )}
+                className="border-0 bg-transparent dark:bg-transparent rounded-none dark:rounded-none shadow-none dark:shadow-none p-0 h-auto text-sm font-medium flex-1 placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
-            {searchQuery && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-4 w-4 text-zinc-400 hover:text-zinc-200",
-                  "hover:bg-transparent"
-                )}
-                onClick={() => setSearchQuery("")}
-              >
-                <X className="size-4" />
-              </Button>
-            )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden ">
-          <h2 className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-2 mt-1 px-4">
+        <div className="flex-1 overflow-hidden">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 mt-1 px-4">
             Recent Chats
           </h2>
 
@@ -133,12 +118,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ conversations }) => {
             <div className="space-y-1">
               {filteredChats.length === 0 ? (
                 <div className="text-center py-8">
-                  <div className="text-zinc-500 text-sm mb-2">
+                  <div className="text-muted-foreground text-sm mb-2">
                     {searchQuery
                       ? "No matching chats found"
                       : "No conversations yet"}
                   </div>
-                  <div className="text-zinc-600 text-xs">
+                  <div className="text-muted-foreground text-xs">
                     {searchQuery
                       ? "Try a different search term"
                       : "Start a new chat to begin"}
@@ -152,8 +137,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ conversations }) => {
                       <Link href={`/chat/${chat.id}`}>
                         <div
                           className={cn(
-                            "flex items-center justify-between px-3 py-1.5 rounded-lg transition-all cursor-pointer text-white",
-                            isActive ? "bg-[#303030]" : "hover:bg-[#303030]"
+                            "flex items-center justify-between px-3 py-1.5 rounded-lg transition-all cursor-pointer",
+                            isActive ? "bg-accent" : "hover:bg-accent"
                           )}
                         >
                           <div className="flex-1 min-w-0">
@@ -163,7 +148,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ conversations }) => {
                                 `Chat ${chat.id.slice(0, 8)}`}
                             </div>
                             {chat.model && (
-                              <div className="text-xs text-zinc-500 truncate">
+                              <div className="text-xs text-muted-foreground truncate">
                                 {chat.model}
                               </div>
                             )}
@@ -176,7 +161,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ conversations }) => {
                                 size="icon"
                                 className={cn(
                                   "h-6 w-6 opacity-0 group-hover:opacity-100",
-                                  "hover:bg-zinc-600 rounded transition-all",
                                   isActive && "opacity-100"
                                 )}
                               >
@@ -186,13 +170,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ conversations }) => {
                             <DropdownMenuContent
                               side="right"
                               align="start"
-                              className="w-48 bg-[#202020] border-zinc-700"
+                              className="w-48"
                             >
                               <DropdownMenuItem
-                                className={cn(
-                                  "text-red-400 hover:text-red-300 cursor-pointer",
-                                  "hover:bg-red-900/20 focus:bg-red-900/20 focus:text-red-300"
-                                )}
+                                className="cursor-pointer text-destructive focus:text-destructive-foreground"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -214,19 +195,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ conversations }) => {
           </div>
         </div>
 
-        <div
-          className={cn(
-            "flex items-center justify-center p-2 rounded-lg",
-            "bg-[#181818] border-t border-zinc-700 transition-colors"
-          )}
-        >
+        <div className="flex items-center justify-center p-2 rounded-lg border-t">
           <UserButton
             showName
             appearance={{
               elements: {
-                rootBox: "flex items-center w-full",
+                rootBox: "flex items-center w-full justify-center",
                 userButtonBox: "flex items-center gap-2 w-full",
-                userButtonOuterIdentifier: "text-sm text-zinc-300",
+                userButtonOuterIdentifier: "text-sm text-muted-foreground",
                 avatarBox: "h-8 w-8",
               },
             }}

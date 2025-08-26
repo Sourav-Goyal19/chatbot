@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { dark } from "@clerk/themes";
+import { shadcn } from "@clerk/themes";
 import { Toaster } from "react-hot-toast";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider appearance={{ baseTheme: dark }}>
+    <ClerkProvider appearance={{ baseTheme: shadcn }}>
       <html lang="en">
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -36,7 +36,7 @@ export default function RootLayout({
           <QueryProvider>
             <ThemeProvider
               attribute="class"
-              defaultTheme="light"
+              defaultTheme="dark"
               enableSystem
               disableTransitionOnChange
             >

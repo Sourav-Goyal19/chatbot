@@ -20,7 +20,6 @@ export default function ChatHomePage() {
   const router = useRouter();
   const { isSignedIn } = useUser();
   const { setQuery } = useQueryStore();
-  const textareaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const saveUser = async () => {
@@ -63,7 +62,7 @@ export default function ChatHomePage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#212121]">
+    <div className="flex flex-col h-full bg-background">
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-3xl mx-auto">
           <div className="text-center mb-8">
@@ -79,33 +78,33 @@ export default function ChatHomePage() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-white"
+                  className="text-primary"
                 >
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-white mb-2">
+              <h1 className="text-3xl font-bold text-foreground mb-2">
                 How can I help you today?
               </h1>
             </div>
           </div>
 
           <div className="w-full max-w-4xl mx-auto">
-            <div className="flex gap-3 items-end bg-[#303030] rounded-3xl p-4 shadow-lg border border-gray-600/20">
+            <div className="flex gap-3 items-end bg-card rounded-3xl p-4 shadow-lg border">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 shrink-0 hover:bg-[#212121] transition-colors rounded-xl"
+                className="h-10 w-10 shrink-0 rounded-xl"
                 type="button"
               >
-                <Plus className="h-5 w-5 text-white" />
+                <Plus className="h-5 w-5" />
               </Button>
 
               <div className="flex-1 min-h-[40px] max-h-[120px] flex items-center">
                 <Textarea
                   {...form.register("query")}
                   placeholder="Ask anything"
-                  className="min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent placeholder:text-gray-400 text-white focus:outline-none focus:ring-0 px-0 py-2"
+                  className="min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent dark:bg-transparent rounded-none dark:rounded-none shadow-none dark:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-0 px-0 py-2"
                   onKeyDown={handleKeyDown}
                   id="querybox"
                   rows={1}
@@ -116,17 +115,11 @@ export default function ChatHomePage() {
                 onClick={form.handleSubmit(onSubmit)}
                 type="submit"
                 size="icon"
-                className="h-10 w-10 shrink-0 bg-white hover:bg-gray-200 rounded-xl transition-colors"
+                className="h-10 w-10 shrink-0 rounded-xl"
                 disabled={!form.watch("query")?.trim()}
               >
-                <ArrowUp className="h-5 w-5 text-black" />
+                <ArrowUp className="h-5 w-5" />
               </Button>
-            </div>
-
-            <div className="text-center mt-4">
-              <p className="text-xs text-gray-400">
-                ChatGPT can make mistakes. Check important info.
-              </p>
             </div>
           </div>
         </div>
