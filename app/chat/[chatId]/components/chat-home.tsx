@@ -146,53 +146,55 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      let actualVersionGroup: VersionGroupType | null = null;
+
       form.reset();
-
-      const tempAIMessage: MessageType = {
-        id: `temp-ai-${Date.now()}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        conversationId: params.chatId as string,
-        versionGroupId: tempVersionGroup.id,
-        sender: "assistant",
-        content: "",
-        role: "assistant",
-        files: [],
-        streaming: true,
-      };
-
-      setVersionGroups((prev) =>
-        prev.map((group) =>
-          group.id === tempVersionGroup.id
-            ? { ...group, messages: [...group.messages, tempAIMessage] }
-            : group
-        )
-      );
-      setIsLoading(false);
-
-      queryClient.invalidateQueries({ queryKey: ["conversations-all"] });
 
       while (true) {
         const { done, value } = await reader!.read();
         if (done) break;
 
         const chunk = decoder.decode(value);
-        fullText += chunk;
+        const lines = chunk.split("\n").filter((line) => line.trim());
 
-        setVersionGroups((prev) =>
-          prev.map((group) =>
-            group.id === tempVersionGroup.id
-              ? {
-                  ...group,
-                  messages: group.messages.map((msg) =>
-                    msg.id === tempAIMessage.id
-                      ? { ...msg, content: fullText, streaming: false }
-                      : msg
-                  ),
-                }
-              : group
-          )
-        );
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+
+            if (parsed.type === "vg") {
+              actualVersionGroup = parsed.data;
+
+              setVersionGroups((prev) =>
+                prev.map((group) =>
+                  group.id === tempVersionGroup.id
+                    ? (actualVersionGroup as VersionGroupType)
+                    : group
+                )
+              );
+              setIsLoading(false);
+            } else if (parsed.type === "stream" && actualVersionGroup) {
+              const text = parsed.data;
+              fullText += text;
+
+              setVersionGroups((prev) =>
+                prev.map((group) =>
+                  group.id === (actualVersionGroup as VersionGroupType).id
+                    ? {
+                        ...group,
+                        messages: group.messages.map((msg) =>
+                          msg.role === "assistant"
+                            ? { ...msg, content: fullText }
+                            : msg
+                        ),
+                      }
+                    : group
+                )
+              );
+            }
+          } catch (parseError) {
+            console.warn("Failed to parse JSON chunk:", parseError);
+          }
+        }
       }
 
       isStreamingRef.current = false;

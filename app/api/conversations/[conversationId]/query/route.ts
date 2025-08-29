@@ -10,6 +10,9 @@ import { SYSTEM_PROMPT } from "@/lib/prompts";
 import { currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { convertToHistoryMessages } from "@/lib/utils";
+import { chatbot } from "./query-graph";
+import { HumanMessage } from "@langchain/core/messages";
 
 const querySchema = z.object({
   query: z.string().min(1, "Query is required"),
@@ -80,22 +83,6 @@ export async function POST(
     //   history: [new HumanMessage(query)],
     // });
 
-    const vg = await client.versionGroup.create({
-      data: {
-        conversation: { connect: { id: conversationId } },
-        messages: {
-          create: {
-            content: query,
-            role: "user",
-            sender: user.id,
-            conversation: { connect: { id: conversationId } },
-          },
-        },
-      },
-      include: { messages: true },
-    });
-
-    // fetching memories and history in parallel
     const [relevantMemories, versionGroups] = await Promise.all([
       memories.search(query, { user_id: user.id }),
       client.versionGroup.findMany({
@@ -114,72 +101,163 @@ export async function POST(
 
     console.log("Memories:", memoriesStr);
 
-    const history = versionGroups
-      .reverse()
-      .flatMap((group) => {
-        const adjustedIndex =
-          group.index % 2 === 0 ? group.index : group.index - 1;
-        return group.messages.slice(adjustedIndex, adjustedIndex + 2);
-      })
-      .map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+    const vg = await client.versionGroup.create({
+      data: {
+        conversation: { connect: { id: conversationId } },
+        messages: {
+          createMany: {
+            data: [
+              {
+                content: query,
+                role: "user",
+                sender: user.id,
+                conversationId,
+              },
+              {
+                content: "",
+                role: "assistant",
+                sender: "assistant",
+                conversationId,
+              },
+            ],
+          },
+        },
+      },
+      include: { messages: true },
+    });
 
-    const stream = streamText({
-      // model: google("gemini-2.0-flash"),
-      model: groq("moonshotai/kimi-k2-instruct"),
-      // model: openrouter("meta-llama/llama-3.3-70b-instruct"),
-      messages: [...history, { role: "user", content: query }],
-      system: SYSTEM_PROMPT.replace("{memories}", memoriesStr),
-      onFinish: async (finishResponse) => {
+    const history = convertToHistoryMessages(versionGroups);
+    const initialState = {
+      messages: [...history, new HumanMessage({ content: query })],
+    };
+    const config = {
+      configurable: {
+        thread_id: conversationId,
+      },
+      streamMode: "messages" as const,
+    };
+    const stream = await chatbot.stream(initialState, config);
+
+    const encoder = new TextEncoder();
+
+    const webstream = new ReadableStream({
+      async start(controller) {
         try {
-          if (isFirstQuery) {
-            generateConversationName(
-              query,
-              finishResponse.text,
-              conversationId
-            );
+          controller.enqueue(
+            encoder.encode(
+              JSON.stringify({
+                type: "vg",
+                data: vg,
+              }) + "\n"
+            )
+          );
+
+          let fullText = "";
+          let text = "";
+
+          for await (const chunk of stream) {
+            text = chunk[0].content as string;
+            if (fullText != text) {
+              fullText += text;
+              controller.enqueue(
+                encoder.encode(
+                  JSON.stringify({
+                    type: "stream",
+                    data: text,
+                  }) + "\n"
+                )
+              );
+            }
           }
 
-          const aiMessage = await client.message.create({
+          const aiMessage = await client.message.update({
+            where: {
+              id: vg.messages[1].id,
+            },
             data: {
-              content: finishResponse.text,
-              role: "assistant",
-              sender: "assistant",
-              conversation: { connect: { id: conversationId } },
-              versionGroup: { connect: { id: vg.id } },
+              content: fullText,
             },
           });
 
-          await memories.add(
-            [
-              { role: "user", content: query },
-              { role: "assistant", content: finishResponse.text },
-            ],
-            { user_id: user.id }
-          );
-
           await client.versionGroup.update({
-            where: { id: vg.id },
+            where: {
+              id: vg.id,
+            },
             data: {
               versions: {
                 push: [vg.messages[0].id, aiMessage.id],
               },
             },
           });
-
-          await client.conversation.update({
-            where: { id: conversationId },
-            data: { lastActivityAt: new Date() },
-          });
+          controller.close();
         } catch (error) {
-          console.error("onFinish error:", error);
+          controller.error(error);
         }
       },
     });
 
-    return stream.toTextStreamResponse();
+    // const stream = streamText({
+    //   // model: google("gemini-2.0-flash"),
+    //   model: groq("moonshotai/kimi-k2-instruct"),
+    //   // model: openrouter("meta-llama/llama-3.3-70b-instruct"),
+    //   messages: [...history, { role: "user", content: query }],
+    //   system: SYSTEM_PROMPT.replace("{memories}", memoriesStr),
+    //   onFinish: async (finishResponse) => {
+    //     try {
+    //       if (isFirstQuery) {
+    //         generateConversationName(
+    //           query,
+    //           finishResponse.text,
+    //           conversationId
+    //         );
+    //       }
+
+    //       const aiMessage = await client.message.create({
+    //         data: {
+    //           content: finishResponse.text,
+    //           role: "assistant",
+    //           sender: "assistant",
+    //           conversation: { connect: { id: conversationId } },
+    //           versionGroup: { connect: { id: vg.id } },
+    //         },
+    //       });
+
+    //       await memories.add(
+    //         [
+    //           { role: "user", content: query },
+    //           { role: "assistant", content: finishResponse.text },
+    //         ],
+    //         { user_id: user.id }
+    //       );
+
+    //       await client.versionGroup.update({
+    //         where: { id: vg.id },
+    //         data: {
+    //           versions: {
+    //             push: [vg.messages[0].id, aiMessage.id],
+    //           },
+    //         },
+    //       });
+
+    //       await client.conversation.update({
+    //         where: { id: conversationId },
+    //         data: { lastActivityAt: new Date() },
+    //       });
+    //     } catch (error) {
+    //       console.error("onFinish error:", error);
+    //     }
+    //   },
+    // });
+
+    // return stream.toTextStreamResponse();
+
+    return new Response(webstream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error) {
     console.error("QUERY[POST]:", error);
     return NextResponse.json(

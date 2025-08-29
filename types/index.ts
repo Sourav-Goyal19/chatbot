@@ -27,7 +27,7 @@ export type MessageType = {
   sender: string;
   content: string;
   role: "user" | "assistant";
-  files: MessageFileType[];
+  files?: MessageFileType[];
   streaming: boolean;
 };
 

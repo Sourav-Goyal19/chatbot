@@ -17,10 +17,28 @@ const chatMoonshotai = new ChatGroq({
   model: "moonshotai/kimi-k2-instruct",
 });
 
+const chatGptOSS = new ChatOpenAI({
+  model: "openai/gpt-oss-20b:free",
+  configuration: {
+    baseURL: process.env.OPENROUTER_BASE_URL,
+    apiKey: process.env.OPENROUTER_API_KEY,
+  },
+});
+
+const chatDeepseek = new ChatOpenAI({
+  model: "deepseek/deepseek-chat-v3-0324:free",
+  configuration: {
+    baseURL: process.env.OPENROUTER_BASE_URL,
+    apiKey: process.env.OPENROUTER_API_KEY,
+  },
+});
+
 const LLMS = {
   openai: chatOpenai,
   google: chatGoogle,
   moonshotai: chatMoonshotai,
+  gptoss: chatGptOSS,
+  deepseek: chatDeepseek,
 };
 
 export default LLMS;
