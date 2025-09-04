@@ -43,4 +43,12 @@ export type FileType = {
   _tempFile?: File;
 };
 
+export type ToolMessageType = {
+  id: string;
+  name: string;
+  args: any;
+  content: string;
+  type: "tool_call" | "tool_result";
+};
+
 export type MessageFileType = FileType | File;

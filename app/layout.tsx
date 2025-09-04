@@ -42,7 +42,16 @@ export default function RootLayout({
             >
               {children}
             </ThemeProvider>
-            <Toaster />
+            <Toaster
+              toastOptions={{
+                style: {
+                  borderRadius: "10px",
+                  background: "#1a1b1e",
+                  color: "#f0f0f0",
+                  border: "2px solid #8c5cff",
+                },
+              }}
+            />
           </QueryProvider>
         </body>
       </html>

@@ -90,7 +90,7 @@ export default function ChatHomePage() {
           </div>
 
           <div className="w-full max-w-4xl mx-auto">
-            <div className="flex gap-3 items-end bg-card rounded-3xl p-4 shadow-lg border">
+            <div className="flex gap-3 items-end bg-card rounded-3xl p-4 shadow-lg border focus-within:outline-2 focus-within:ring-2 focus-within:ring-ring focus-within:outline-ring/50">
               <Button
                 variant="ghost"
                 size="icon"

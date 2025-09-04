@@ -10,8 +10,9 @@ import { MessageList } from "./message-list";
 import { useQueryStore } from "@/zustand/store";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { LoadingAnimation } from "./loading-animation";
 import { getCurrentMessages } from "../conversation-utils";
-import type { VersionGroupType, MessageType } from "@/types";
+import type { VersionGroupType, ToolMessageType } from "@/types";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
 interface ChatHomePageProps {
@@ -25,6 +26,10 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [toolMessages, setToolMessages] = useState<
+    Record<string, ToolMessageType>
+  >({});
+
   const { query: firstQuery, clearQuery } = useQueryStore();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [versionGroups, setVersionGroups] =
@@ -107,6 +112,7 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
     setIsLoading(true);
     resetAutoScroll();
     isStreamingRef.current = true;
+    setToolMessages({});
 
     try {
       const tempVersionGroup: VersionGroupType = {
@@ -190,6 +196,28 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
                     : group
                 )
               );
+            } else if (parsed.type === "tool") {
+              const toolId = parsed.id;
+              setToolMessages((prev) => ({
+                ...prev,
+                [toolId]: {
+                  id: toolId,
+                  name: parsed.name,
+                  args: parsed.args,
+                  content: parsed.data,
+                  type: "tool_call",
+                },
+              }));
+            } else if (parsed.type === "tool_result") {
+              const toolId = parsed.id;
+              setToolMessages((prev) => ({
+                ...prev,
+                [toolId]: {
+                  ...prev[toolId],
+                  content: parsed.data,
+                  type: "tool_result",
+                },
+              }));
             }
           } catch (parseError) {
             console.warn("Failed to parse JSON chunk:", parseError);
@@ -267,42 +295,9 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
               </p>
             </div>
           ) : (
-            <MessageList messages={allMessages} />
+            <MessageList messages={allMessages} toolMessages={toolMessages} />
           )}
-          {isLoading && (
-            <div className="flex gap-4 justify-start">
-              <div className="max-w-[80%] p-4 bg-muted text-muted-foreground rounded-lg">
-                <div className="flex items-center justify-center">
-                  <div className="flex gap-1.5">
-                    <div
-                      className="w-3 h-3 rounded-full shadow-sm bg-muted-foreground/40"
-                      style={{
-                        animationDuration: "1.4s",
-                        animationDelay: "0s",
-                        animation: "bounce 1.4s infinite",
-                      }}
-                    ></div>
-                    <div
-                      className="w-3 h-3 rounded-full shadow-sm bg-muted-foreground/60"
-                      style={{
-                        animationDuration: "1.4s",
-                        animationDelay: "0.2s",
-                        animation: "bounce 1.4s infinite",
-                      }}
-                    ></div>
-                    <div
-                      className="w-3 h-3 rounded-full shadow-sm bg-muted-foreground/80"
-                      style={{
-                        animationDuration: "1.4s",
-                        animationDelay: "0.4s",
-                        animation: "bounce 1.4s infinite",
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {isLoading && <LoadingAnimation />}
           <div ref={messagesEndRef} />
         </div>
       </div>

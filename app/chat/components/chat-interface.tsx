@@ -66,7 +66,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages Area */}
       <ScrollArea className="flex-1 p-4">
         <div className="max-w-3xl mx-auto space-y-6">
           {messages.map((msg) => (
@@ -104,7 +103,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         </div>
       </ScrollArea>
 
-      {/* Input Area */}
       <div className="border-t border-border/40 p-4">
         <div className="max-w-3xl mx-auto">
           <div className="relative flex items-end gap-2">

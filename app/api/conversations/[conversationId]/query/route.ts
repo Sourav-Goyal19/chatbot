@@ -12,7 +12,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { convertToHistoryMessages } from "@/lib/utils";
 import { chatbot } from "./query-graph";
-import { HumanMessage } from "@langchain/core/messages";
+import {
+  AIMessageChunk,
+  HumanMessage,
+  ToolMessage,
+} from "@langchain/core/messages";
 
 const querySchema = z.object({
   query: z.string().min(1, "Query is required"),
@@ -156,14 +160,49 @@ export async function POST(
           let text = "";
 
           for await (const chunk of stream) {
-            text = chunk[0].content as string;
-            if (fullText != text) {
+            const messageChunk = chunk[0];
+            text = messageChunk.content as string;
+
+            if (
+              messageChunk instanceof AIMessageChunk &&
+              messageChunk.tool_calls &&
+              messageChunk.tool_calls.length > 0
+            ) {
+              messageChunk.tool_calls.forEach((toolCall) => {
+                controller.enqueue(
+                  encoder.encode(
+                    JSON.stringify({
+                      type: "tool",
+                      role: "tool",
+                      id: toolCall.id,
+                      name: toolCall.name,
+                      args: toolCall.args,
+                      data: `Calling tool: ${
+                        toolCall.name
+                      }\nArguments: ${JSON.stringify(toolCall.args, null, 2)}`,
+                    }) + "\n"
+                  )
+                );
+              });
+            } else if (messageChunk instanceof ToolMessage) {
+              controller.enqueue(
+                encoder.encode(
+                  JSON.stringify({
+                    type: "tool_result",
+                    role: "tool",
+                    id: messageChunk.tool_call_id,
+                    data: `Tool result: ${messageChunk.content}`,
+                  }) + "\n"
+                )
+              );
+            } else if (text && fullText !== text) {
               fullText += text;
               controller.enqueue(
                 encoder.encode(
                   JSON.stringify({
                     type: "stream",
                     data: text,
+                    role: "ai",
                   }) + "\n"
                 )
               );
@@ -189,6 +228,10 @@ export async function POST(
               },
             },
           });
+
+          if (isFirstQuery) {
+            generateConversationName(query, fullText, conversationId);
+          }
           controller.close();
         } catch (error) {
           controller.error(error);
