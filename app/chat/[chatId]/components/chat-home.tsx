@@ -26,8 +26,8 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [toolMessages, setToolMessages] = useState<
-    Record<string, ToolMessageType>
+  const [messageTools, setMessageTools] = useState<
+    Record<string, ToolMessageType[]>
   >({});
 
   const { query: firstQuery, clearQuery } = useQueryStore();
@@ -112,7 +112,6 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
     setIsLoading(true);
     resetAutoScroll();
     isStreamingRef.current = true;
-    setToolMessages({});
 
     try {
       const tempVersionGroup: VersionGroupType = {
@@ -198,26 +197,62 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
               );
             } else if (parsed.type === "tool") {
               const toolId = parsed.id;
-              setToolMessages((prev) => ({
+              const messageId = parsed.messageId || "unknown";
+
+              setMessageTools((prev) => ({
                 ...prev,
-                [toolId]: {
-                  id: toolId,
-                  name: parsed.name,
-                  args: parsed.args,
-                  content: parsed.data,
-                  type: "tool_call",
-                },
+                [messageId]: [
+                  ...(prev[messageId] || []),
+                  {
+                    id: toolId,
+                    name: parsed.name,
+                    args: parsed.args,
+                    content: parsed.data,
+                    type: "tool_call" as const,
+                    messageId: messageId,
+                  },
+                ],
               }));
             } else if (parsed.type === "tool_result") {
               const toolId = parsed.id;
-              setToolMessages((prev) => ({
-                ...prev,
-                [toolId]: {
-                  ...prev[toolId],
-                  content: parsed.data,
-                  type: "tool_result",
-                },
-              }));
+              const messageId = parsed.messageId || "unknown";
+
+              setMessageTools((prev) => {
+                const existingTools = prev[messageId] || [];
+                const toolToUpdate = existingTools.find(
+                  (tool) => tool.id === toolId
+                );
+
+                if (toolToUpdate) {
+                  const updatedTools = existingTools.map((tool) =>
+                    tool.id === toolId
+                      ? {
+                          ...tool,
+                          content: parsed.data,
+                          type: "tool_result" as const,
+                        }
+                      : tool
+                  );
+                  return {
+                    ...prev,
+                    [messageId]: updatedTools,
+                  };
+                } else {
+                  return {
+                    ...prev,
+                    [messageId]: [
+                      ...existingTools,
+                      {
+                        id: toolId,
+                        name: "unknown_tool",
+                        content: parsed.data,
+                        type: "tool_result" as const,
+                        messageId: messageId,
+                      },
+                    ],
+                  };
+                }
+              });
             }
           } catch (parseError) {
             console.warn("Failed to parse JSON chunk:", parseError);
@@ -295,7 +330,7 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
               </p>
             </div>
           ) : (
-            <MessageList messages={allMessages} toolMessages={toolMessages} />
+            <MessageList messages={allMessages} messageTools={messageTools} />
           )}
           {isLoading && <LoadingAnimation />}
           <div ref={messagesEndRef} />

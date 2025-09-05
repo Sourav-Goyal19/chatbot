@@ -9,20 +9,17 @@ import { MessageType, ToolMessageType } from "@/types";
 
 interface MessageListProps {
   messages: MessageType[];
-  toolMessages?: Record<string, ToolMessageType>;
+  messageTools?: Record<string, ToolMessageType[]>;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
-  toolMessages = {},
+  messageTools = {},
 }) => {
   return (
     <>
       {messages.map((message) => {
-        const relevantToolMessages = Object.values(toolMessages).filter(
-          (toolMsg) =>
-            toolMsg.type === "tool_call" || toolMsg.type === "tool_result"
-        );
+        const messageToolMessages = messageTools[message.id] || [];
 
         return (
           <div key={message.id}>
@@ -34,21 +31,22 @@ export const MessageList: React.FC<MessageListProps> = ({
               <div className="relative max-w-[100%]">
                 {message.role === "assistant" ? (
                   <div className="space-y-1">
-                    {relevantToolMessages.length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        {relevantToolMessages.map((toolMsg) => (
-                          <ToolDropdown
-                            key={toolMsg.id}
-                            content={toolMsg.content}
-                            title={
-                              toolMsg.type === "tool_call"
-                                ? `Using ${toolMsg.name}`
-                                : `Result from ${toolMsg.name}`
-                            }
-                          />
-                        ))}
-                      </div>
-                    )}
+                    {message.role === "assistant" &&
+                      messageToolMessages.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          {messageToolMessages.map((toolMsg) => (
+                            <ToolDropdown
+                              key={toolMsg.id}
+                              content={toolMsg.content}
+                              title={
+                                toolMsg.type === "tool_call"
+                                  ? `Using ${toolMsg.name}`
+                                  : `Result from ${toolMsg.name}`
+                              }
+                            />
+                          ))}
+                        </div>
+                      )}
                     <MDEditor.Markdown
                       source={message.content}
                       style={{

@@ -5,13 +5,12 @@ import { streamText, generateText } from "ai";
 import client from "@/lib/prismadb";
 import { memories } from "@/lib/mem0";
 import { google } from "@ai-sdk/google";
+import { chatbot } from "./query-graph";
 import { createGroq } from "@ai-sdk/groq";
-import { SYSTEM_PROMPT } from "@/lib/prompts";
 import { currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { convertToHistoryMessages } from "@/lib/utils";
-import { chatbot } from "./query-graph";
 import {
   AIMessageChunk,
   HumanMessage,
@@ -144,6 +143,8 @@ export async function POST(
 
     const encoder = new TextEncoder();
 
+    let currentMessageId = vg.messages[1].id;
+
     const webstream = new ReadableStream({
       async start(controller) {
         try {
@@ -175,6 +176,7 @@ export async function POST(
                       type: "tool",
                       role: "tool",
                       id: toolCall.id,
+                      messageId: currentMessageId,
                       name: toolCall.name,
                       args: toolCall.args,
                       data: `Calling tool: ${
@@ -191,6 +193,7 @@ export async function POST(
                     type: "tool_result",
                     role: "tool",
                     id: messageChunk.tool_call_id,
+                    messageId: currentMessageId,
                     data: `Tool result: ${messageChunk.content}`,
                   }) + "\n"
                 )
@@ -203,6 +206,7 @@ export async function POST(
                     type: "stream",
                     data: text,
                     role: "ai",
+                    messageId: currentMessageId,
                   }) + "\n"
                 )
               );

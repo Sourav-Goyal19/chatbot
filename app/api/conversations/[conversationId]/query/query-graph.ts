@@ -1,17 +1,16 @@
 import { z } from "zod";
 import LLMS from "@/lib/llms";
+import { v4 as uuidV4 } from "uuid";
 import { queryPrompt } from "@/lib/prompts";
 import { tool } from "@langchain/core/tools";
 import { TavilySearch } from "@langchain/tavily";
 import { START, StateGraph, END, Annotation } from "@langchain/langgraph";
 import {
   AIMessage,
-  AIMessageChunk,
   BaseMessage,
   HumanMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import { ToolCall } from "@langchain/core/messages/tool";
 
 const BotGraphStateSchema = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
@@ -58,6 +57,7 @@ const llmWithTools = LLMS.moonshotai.bindTools(toolsList);
 
 const toolsObj = {
   calculator: calculatorTool,
+  tavily_search: searchTool,
 };
 
 const queryChain = queryPrompt.pipe(llmWithTools);
@@ -76,28 +76,52 @@ async function chatNode(state: BotGraphState) {
 
 async function toolNode(state: BotGraphState) {
   const messages = state.messages;
-  const lastMessage = messages[messages.length - 1];
-  ((lastMessage as AIMessageChunk).tool_calls as ToolCall[]).forEach(
-    async (tl) => {
+  const lastMessage = messages[messages.length - 1] as AIMessage;
+
+  if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+    const toolResults: ToolMessage[] = [];
+
+    for (const tl of lastMessage.tool_calls) {
       if (tl.name in toolsObj) {
-        //@ts-ignore
-        const toolResponse: ToolMessage = await toolsObj[tl.name].invoke(tl);
-        // console.log(toolResponse);
-        state.messages = [toolResponse];
+        try {
+          // @ts-ignore
+          const toolResponse: ToolMessage = await toolsObj[tl.name].invoke(
+            tl.args
+          );
+          toolResults.push(
+            new ToolMessage({
+              content: JSON.stringify(toolResponse),
+              tool_call_id: tl.id || uuidV4(),
+              name: tl.name,
+            })
+          );
+        } catch (error) {
+          toolResults.push(
+            new ToolMessage({
+              content: `Error executing tool ${tl.name}: ${error}`,
+              tool_call_id: tl.id || uuidV4(),
+              name: tl.name,
+            })
+          );
+        }
       }
     }
-  );
+
+    state.messages = [...toolResults];
+  }
 
   return state;
 }
 
 async function shouldUseTool(state: BotGraphState) {
   const messages = state.messages;
-  const lastMessage = messages[messages.length - 1];
-  //@ts-ignore
-  if (lastMessage.tool_calls.length > 0) {
+  const lastMessage = messages[messages.length - 1] as AIMessage;
+
+  if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
     return "toolNode";
-  } else return END;
+  } else {
+    return END;
+  }
 }
 
 const graph = new StateGraph(BotGraphStateSchema)
