@@ -7,7 +7,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useUser } from "@clerk/nextjs";
 import { useForm } from "react-hook-form";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConversationType } from "@/types";
 import { useRouter } from "next/navigation";
 import { ArrowUp, Plus } from "lucide-react";
@@ -20,6 +20,7 @@ export default function ChatHomePage() {
   const router = useRouter();
   const { isSignedIn } = useUser();
   const { setQuery } = useQueryStore();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const saveUser = async () => {
@@ -43,6 +44,7 @@ export default function ChatHomePage() {
 
   const onSubmit = async (values: FormType) => {
     if (!values.query.trim()) return;
+    setIsLoading(true);
     try {
       const res = await axios.post("/api/conversations/create", {});
       const conversation = res.data.conversation as ConversationType;
@@ -51,6 +53,8 @@ export default function ChatHomePage() {
     } catch (error: any) {
       console.error(error);
       toast.error(error.response.data.error || "Something went wrong");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -94,6 +98,7 @@ export default function ChatHomePage() {
               <Button
                 variant="ghost"
                 size="icon"
+                disabled={isLoading}
                 className="h-10 w-10 shrink-0 rounded-xl"
                 type="button"
               >
@@ -103,6 +108,7 @@ export default function ChatHomePage() {
               <div className="flex-1 min-h-[40px] max-h-[120px] flex items-center">
                 <Textarea
                   {...form.register("query")}
+                  disabled={isLoading}
                   placeholder="Ask anything"
                   className="min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent dark:bg-transparent rounded-none dark:rounded-none shadow-none dark:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-0 px-0 py-2"
                   onKeyDown={handleKeyDown}
@@ -116,7 +122,7 @@ export default function ChatHomePage() {
                 type="submit"
                 size="icon"
                 className="h-10 w-10 shrink-0 rounded-xl"
-                disabled={!form.watch("query")?.trim()}
+                disabled={!form.watch("query")?.trim() || isLoading}
               >
                 <ArrowUp className="h-5 w-5" />
               </Button>

@@ -32,6 +32,7 @@ model Conversation {
   user              User           @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
   messages          Message[]
   versionGroups     VersionGroup[]
+  historySummary    String         @default("")
 }
 
 model VersionGroup {

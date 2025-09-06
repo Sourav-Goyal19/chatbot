@@ -13,7 +13,7 @@ export async function getVersionGroups(
     include: {
       messages: {
         orderBy: {
-          createdAt: "asc",
+          updatedAt: "asc",
         },
         include: {
           files: true,

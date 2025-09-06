@@ -2,10 +2,10 @@ import React from "react";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { Copy } from "lucide-react";
-import MDEditor from "@uiw/react-md-editor";
 import { ToolDropdown } from "./tool-dropdown";
 import { Button } from "@/components/ui/button";
 import { MessageType, ToolMessageType } from "@/types";
+import { MarkdownRenderer } from "./markdown-renderer";
 
 interface MessageListProps {
   messages: MessageType[];
@@ -20,9 +20,8 @@ export const MessageList: React.FC<MessageListProps> = ({
     <>
       {messages.map((message) => {
         const messageToolMessages = messageTools[message.id] || [];
-
         return (
-          <div key={message.id}>
+          <div key={message.id} className="mb-8">
             <div
               className={`flex group relative ${
                 message.role === "user" ? "justify-end" : "justify-start"
@@ -33,7 +32,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                   <div className="space-y-1">
                     {message.role === "assistant" &&
                       messageToolMessages.length > 0 && (
-                        <div className="mt-2 space-y-2">
+                        <div className="mt-2 space-y-2 mb-4">
                           {messageToolMessages.map((toolMsg) => (
                             <ToolDropdown
                               key={toolMsg.id}
@@ -47,32 +46,40 @@ export const MessageList: React.FC<MessageListProps> = ({
                           ))}
                         </div>
                       )}
-                    <MDEditor.Markdown
-                      source={message.content}
-                      style={{
-                        background: "transparent",
-                        fontSize: "1rem",
-                        lineHeight: "1.625rem",
-                        whiteSpace: "pre-wrap",
-                        color: "var(--foreground)",
-                      }}
-                    />
+
+                    <div
+                      className={cn(
+                        "bg-card border border-border p-6 shadow-[var(--shadow-sm)]",
+                        "rounded-[var(--radius-xl)] font-[var(--font-sans)]"
+                      )}
+                    >
+                      <MarkdownRenderer
+                        content={message.content}
+                        className="text-card-foreground markdown-content"
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {message.content && (
-                      <p
+                      <div
                         className={cn(
-                          "text-sm p-4 rounded-full leading-relaxed whitespace-pre-wrap",
+                          "text-sm p-4 px-6 leading-relaxed whitespace-pre-wrap w-full max-w-[80%] justify-self-end",
+                          "font-[var(--font-sans)] tracking-[var(--tracking-normal)]",
+                          "rounded-[var(--radius-xl)] shadow-[var(--shadow-xs)]",
                           message.role == "user" &&
                             "bg-primary/60 text-primary-foreground"
                         )}
                       >
-                        {message.content}
-                      </p>
+                        <MarkdownRenderer
+                          content={message.content}
+                          className="text-current [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                        />
+                      </div>
                     )}
                   </div>
                 )}
+
                 <div
                   className={cn(
                     "flex items-center group gap-4 ml-2 mt-1.5",
@@ -82,7 +89,10 @@ export const MessageList: React.FC<MessageListProps> = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                    className={cn(
+                      "opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0",
+                      "hover:bg-sidebar-accent rounded-[var(--radius-sm)]"
+                    )}
                     onClick={() => {
                       navigator.clipboard.writeText(message.content);
                       toast.success("Text copied to clipboard.");

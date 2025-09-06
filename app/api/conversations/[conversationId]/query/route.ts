@@ -1,63 +1,31 @@
 import { z } from "zod";
-import { streamText, generateText } from "ai";
-// import { queryChain } from "@/lib/chains";
-// import { HumanMessage } from "@langchain/core/messages";
+import LLMS from "@/lib/llms";
+import { generateText } from "ai";
 import client from "@/lib/prismadb";
 import { memories } from "@/lib/mem0";
 import { google } from "@ai-sdk/google";
 import { chatbot } from "./query-graph";
-import { createGroq } from "@ai-sdk/groq";
 import { currentUser } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { convertToHistoryMessages } from "@/lib/utils";
+import { NextRequest, NextResponse } from "next/server";
+import { JsonOutputParser } from "@langchain/core/output_parsers";
 import {
-  AIMessageChunk,
-  HumanMessage,
+  ChatPromptTemplate,
+  MessagesPlaceholder,
+} from "@langchain/core/prompts";
+import {
+  AIMessage,
+  BaseMessage,
   ToolMessage,
+  HumanMessage,
+  SystemMessage,
+  AIMessageChunk,
 } from "@langchain/core/messages";
 
 const querySchema = z.object({
   query: z.string().min(1, "Query is required"),
   isFirstQuery: z.boolean().default(false),
 });
-
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: process.env.OPENROUTER_BASE_URL,
-});
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
-// const memory = new Memory({
-//   version: "v1.1",
-//   llm: {
-//     provider: "gemini",
-//     config: {
-//       apiKey: process.env.GOOGLE_API_KEY,
-//       model: "gemini-1.5-flash",
-//     },
-//   },
-//   embedder: {
-//     provider: "gemini",
-//     config: {
-//       apiKey: process.env.GOOGLE_API_KEY,
-//       model: "models/text-embedding-004",
-//     },
-//   },
-//   vectorStore: {
-//     provider: "qdrant",
-//     config: {
-//       collectionName: "chatgpt-clone",
-//       dimension: 768,
-//       url: "https://139b6306-b511-4939-b964-723dfe27b73c.eu-west-2-0.aws.cloud.qdrant.io",
-//       apiKey: process.env.QDRANT_CHATGPT_API_KEY,
-//       embeddingModelDims: 768,
-//     },
-//   },
-// });
 
 export async function POST(
   req: NextRequest,
@@ -82,27 +50,29 @@ export async function POST(
 
     const { query, isFirstQuery } = parsed.data;
 
-    // const aires = await queryChain.invoke({
-    //   history: [new HumanMessage(query)],
-    // });
-
-    const [relevantMemories, versionGroups] = await Promise.all([
+    const [relevantMemories, versionGroups, conversation] = await Promise.all([
       memories.search(query, { user_id: user.id }),
       client.versionGroup.findMany({
         where: { conversationId },
         include: {
-          messages: { orderBy: { createdAt: "asc" } },
+          messages: { orderBy: { updatedAt: "asc" } },
         },
         orderBy: { createdAt: "desc" },
-        take: 5,
+        take: 25,
+      }),
+      client.conversation.findUnique({
+        where: {
+          id: conversationId,
+        },
+        select: {
+          historySummary: true,
+        },
       }),
     ]);
 
     const memoriesStr = relevantMemories
       .map((entry) => `- ${entry.memory}`)
       .join("\n");
-
-    console.log("Memories:", memoriesStr);
 
     const vg = await client.versionGroup.create({
       data: {
@@ -129,16 +99,34 @@ export async function POST(
       include: { messages: true },
     });
 
-    const history = convertToHistoryMessages(versionGroups);
+    let history = convertToHistoryMessages(versionGroups);
+
+    if (history.length > 15) {
+      history = history.slice(-15);
+    }
+
+    history.unshift(
+      new AIMessage(`
+        Here is the whole summary of our previous conversation:
+        ${conversation?.historySummary}
+        `)
+    );
+
+    if (memoriesStr) {
+      history.unshift(new AIMessage(`Relevant past memories:\n${memoriesStr}`));
+    }
+
     const initialState = {
       messages: [...history, new HumanMessage({ content: query })],
     };
+
     const config = {
       configurable: {
         thread_id: conversationId,
       },
       streamMode: "messages" as const,
     };
+
     const stream = await chatbot.stream(initialState, config);
 
     const encoder = new TextEncoder();
@@ -236,67 +224,21 @@ export async function POST(
           if (isFirstQuery) {
             generateConversationName(query, fullText, conversationId);
           }
+
+          if (history.length >= 15) {
+            generateSummary(
+              conversationId,
+              conversation?.historySummary,
+              history
+            );
+          }
+
           controller.close();
         } catch (error) {
           controller.error(error);
         }
       },
     });
-
-    // const stream = streamText({
-    //   // model: google("gemini-2.0-flash"),
-    //   model: groq("moonshotai/kimi-k2-instruct"),
-    //   // model: openrouter("meta-llama/llama-3.3-70b-instruct"),
-    //   messages: [...history, { role: "user", content: query }],
-    //   system: SYSTEM_PROMPT.replace("{memories}", memoriesStr),
-    //   onFinish: async (finishResponse) => {
-    //     try {
-    //       if (isFirstQuery) {
-    //         generateConversationName(
-    //           query,
-    //           finishResponse.text,
-    //           conversationId
-    //         );
-    //       }
-
-    //       const aiMessage = await client.message.create({
-    //         data: {
-    //           content: finishResponse.text,
-    //           role: "assistant",
-    //           sender: "assistant",
-    //           conversation: { connect: { id: conversationId } },
-    //           versionGroup: { connect: { id: vg.id } },
-    //         },
-    //       });
-
-    //       await memories.add(
-    //         [
-    //           { role: "user", content: query },
-    //           { role: "assistant", content: finishResponse.text },
-    //         ],
-    //         { user_id: user.id }
-    //       );
-
-    //       await client.versionGroup.update({
-    //         where: { id: vg.id },
-    //         data: {
-    //           versions: {
-    //             push: [vg.messages[0].id, aiMessage.id],
-    //           },
-    //         },
-    //       });
-
-    //       await client.conversation.update({
-    //         where: { id: conversationId },
-    //         data: { lastActivityAt: new Date() },
-    //       });
-    //     } catch (error) {
-    //       console.error("onFinish error:", error);
-    //     }
-    //   },
-    // });
-
-    // return stream.toTextStreamResponse();
 
     return new Response(webstream, {
       headers: {
@@ -311,6 +253,64 @@ export async function POST(
       { error: "Failed to process your request" },
       { status: 500 }
     );
+  }
+}
+
+async function generateSummary(
+  conversationId: string,
+  lastSummary: string = "",
+  history: BaseMessage[]
+) {
+  try {
+    const prompt = ChatPromptTemplate.fromMessages([
+      new SystemMessage(`You are an expert conversation summarizer. 
+      Your job is to maintain a running summary of this conversation for long-context use by another LLM. 
+      When updating the summary, do not repeat the entire conversation. Instead, merge new information with the previous summary. 
+
+      Guidelines:
+      - Keep the summary concise (max 400 words). 
+      - Preserve important details: facts, decisions, user constraints, and user preferences. 
+      - Ignore small talk, filler, or irrelevant messages. 
+      - Maintain clarity so another LLM can quickly understand the state of the conversation. 
+      - Always output valid JSON with the exact schema below.
+
+      Output format:
+      {
+        "summary": "<updated_summary_here>"
+      }
+
+      Here is the previous summary of this conversation:
+      <summary>{summary}</summary>`),
+      new MessagesPlaceholder("conversation"),
+    ]);
+
+    const summaryChain = prompt.pipe(LLMS.gptoss).pipe(new JsonOutputParser());
+
+    const res: any = await summaryChain.invoke({
+      conversation: history,
+      summary: lastSummary,
+    });
+
+    const summarySchema = z.object({
+      summary: z.string().min(1),
+    });
+
+    const parsed = summarySchema.safeParse(res);
+
+    if (!parsed.success) {
+      return;
+    }
+
+    await client.conversation.update({
+      where: {
+        id: conversationId,
+      },
+      data: {
+        historySummary: parsed.data.summary.trim(),
+      },
+    });
+  } catch (error) {
+    console.error("generateSummary:", error);
   }
 }
 

@@ -11,6 +11,7 @@ export const queryPrompt = ChatPromptTemplate.fromMessages([
 
     ## Important Note:
     - Try to use your tools whenever needed.
+    - Always give the output in markdown format.
 
     ## Core Principles:
     - Be genuinely helpful and provide actionable information

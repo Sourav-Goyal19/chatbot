@@ -264,7 +264,7 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
       queryClient.invalidateQueries({ queryKey: ["conversations-all"] });
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || "An error occurred");
+      toast.error(error.response.data.error || "An error occurred");
       form.setValue("query", values.query);
       setIsLoading(false);
       isStreamingRef.current = false;
@@ -302,7 +302,54 @@ export const ChatHomePage: React.FC<ChatHomePageProps> = ({
 
   useEffect(() => {
     const handleKeydown = (e: KeyboardEvent) => {
-      document.getElementById("querybox")?.focus();
+      const shouldIgnore =
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        (e.target as HTMLElement)?.matches(
+          'input, textarea, [contenteditable="true"]'
+        ) ||
+        //@ts-ignore
+        window.getSelection()?.toString().length > 0 ||
+        [
+          "Escape",
+          "Tab",
+          "Enter",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "Home",
+          "End",
+          "PageUp",
+          "PageDown",
+          "Delete",
+          "Backspace",
+          "F1",
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8",
+          "F9",
+          "F10",
+          "F11",
+          "F12",
+        ].includes(e.key) ||
+        e.key.startsWith("F") ||
+        e.key.includes("Audio") ||
+        e.key.includes("Media");
+
+      if (!shouldIgnore && e.key.length === 1) {
+        const chatInput = document.getElementById(
+          "querybox"
+        ) as HTMLInputElement;
+        if (chatInput && document.activeElement !== chatInput) {
+          chatInput.focus();
+        }
+      }
     };
 
     document.documentElement.addEventListener("keydown", handleKeydown);
