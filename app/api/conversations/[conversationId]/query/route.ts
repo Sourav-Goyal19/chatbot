@@ -5,7 +5,9 @@ import client from "@/lib/prismadb";
 import { memories } from "@/lib/mem0";
 import { google } from "@ai-sdk/google";
 import { chatbot } from "./query-graph";
+import { vectorStore } from "@/lib/pinecone";
 import { currentUser } from "@clerk/nextjs/server";
+import { Document } from "@langchain/core/documents";
 import { convertToHistoryMessages } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
 import { JsonOutputParser } from "@langchain/core/output_parsers";
@@ -221,6 +223,8 @@ export async function POST(
             },
           });
 
+          storeIntoVectorDB(conversationId, query, fullText);
+
           if (isFirstQuery) {
             generateConversationName(query, fullText, conversationId);
           }
@@ -346,4 +350,27 @@ async function generateConversationName(
       title: res.text.trim(),
     },
   });
+}
+
+async function storeIntoVectorDB(
+  conversationId: string,
+  userMsg: string,
+  aiRes: string
+) {
+  try {
+    const documents: Document[] = [
+      {
+        pageContent: userMsg,
+        metadata: { conversationId },
+      },
+      {
+        pageContent: aiRes,
+        metadata: { conversationId },
+      },
+    ];
+
+    await vectorStore.addDocuments(documents);
+  } catch (error) {
+    console.error("VECTORSTORE:", error);
+  }
 }

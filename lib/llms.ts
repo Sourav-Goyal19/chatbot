@@ -2,9 +2,12 @@ import { ChatGroq } from "@langchain/groq";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
-const chatOpenai = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  model: "gpt-4o",
+const chatLlama = new ChatOpenAI({
+  model: "meta-llama/llama-3.3-70b-instruct",
+  configuration: {
+    baseURL: process.env.OPENROUTER_BASE_URL,
+    apiKey: process.env.OPENROUTER_API_KEY,
+  },
 });
 
 const chatGoogle = new ChatGoogleGenerativeAI({
@@ -34,11 +37,11 @@ const chatDeepseek = new ChatOpenAI({
 });
 
 const LLMS = {
-  openai: chatOpenai,
-  google: chatGoogle,
-  moonshotai: chatMoonshotai,
+  llama: chatLlama,
   gptoss: chatGptOSS,
+  google: chatGoogle,
   deepseek: chatDeepseek,
+  moonshotai: chatMoonshotai,
 };
 
 export default LLMS;

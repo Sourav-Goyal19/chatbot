@@ -2,6 +2,7 @@ import { z } from "zod";
 import LLMS from "@/lib/llms";
 import { v4 as uuidV4 } from "uuid";
 import { queryPrompt } from "@/lib/prompts";
+import { embeddings } from "@/lib/embeddings";
 import { tool } from "@langchain/core/tools";
 import { TavilySearch } from "@langchain/tavily";
 import { START, StateGraph, END, Annotation } from "@langchain/langgraph";
@@ -11,6 +12,8 @@ import {
   ToolMessage,
   HumanMessage,
 } from "@langchain/core/messages";
+import { retriever } from "@/lib/pinecone";
+import { RunnableConfig } from "@langchain/core/runnables";
 
 const BotGraphStateSchema = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
@@ -51,13 +54,43 @@ const searchTool = new TavilySearch({
   tavilyApiKey: process.env.TAVILY_API_KEY,
 });
 
-const toolsList = [calculatorTool, searchTool];
+const vectorToolSchema = z.object({
+  query: z.string().min(1, "Query is required"),
+});
+
+const vectorSearchTool = tool(
+  async (input, config: RunnableConfig) => {
+    const typedInput = input as { query: string };
+
+    const conversationId = config?.configurable?.thread_id;
+
+    if (!conversationId) {
+      throw new Error("Missing conversationId for vector search");
+    }
+
+    const documents = await retriever.invoke(typedInput.query, {
+      metadata: {
+        conversationId,
+      },
+    });
+    return documents.map((doc) => doc.pageContent);
+  },
+  {
+    name: "vector_search",
+    description:
+      "Searches similar vectors from the current conversation's vector DB entries. Returns the top 3 relevant results. Takes the query in parameters.",
+    schema: vectorToolSchema,
+  }
+);
+
+const toolsList = [calculatorTool, searchTool, vectorSearchTool];
 
 const llmWithTools = LLMS.moonshotai.bindTools(toolsList);
 
 const toolsObj = {
   calculator: calculatorTool,
   tavily_search: searchTool,
+  vector_search: vectorSearchTool,
 };
 
 const queryChain = queryPrompt.pipe(llmWithTools);
