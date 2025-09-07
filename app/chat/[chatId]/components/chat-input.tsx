@@ -43,7 +43,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         className="max-w-3xl mx-auto"
       >
         <div className="flex flex-col gap-2">
-          <div className="flex gap-2 items-center bg-card py-2 px-6 rounded-full transition-colors group focus-within:outline-2 focus-within:ring-2 focus-within:ring-ring focus-within:outline-ring/50">
+          <div className="flex gap-2 items-center bg-card py-2 px-6 rounded-3xl transition-colors group focus-within:outline-2 focus-within:ring-2 focus-within:ring-ring focus-within:outline-ring/50">
             <div
               className="flex-1 items-center justify-center"
               ref={textareaRef}

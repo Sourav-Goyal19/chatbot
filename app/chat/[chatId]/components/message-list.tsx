@@ -27,7 +27,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 message.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <div className="relative max-w-[100%]">
+              <div className="relative w-full">
                 {message.role === "assistant" ? (
                   <div className="space-y-1">
                     {message.role === "assistant" &&
@@ -64,8 +64,8 @@ export const MessageList: React.FC<MessageListProps> = ({
                     {message.content && (
                       <div
                         className={cn(
-                          "text-sm p-4 px-6 leading-relaxed whitespace-pre-wrap w-full max-w-[80%] justify-self-end",
-                          "font-[var(--font-sans)] tracking-[var(--tracking-normal)]",
+                          "text-base p-4 px-6 leading-relaxed whitespace-pre-wrap max-w-[90%] justify-self-end",
+                          "font-[var(--font-mono)] tracking-[var(--tracking-normal)]",
                           "rounded-[var(--radius-xl)] shadow-[var(--shadow-xs)]",
                           message.role == "user" &&
                             "bg-primary/60 text-primary-foreground"
