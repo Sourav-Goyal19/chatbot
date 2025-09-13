@@ -19,11 +19,14 @@ export const PressableButton: React.FC<PressableButtonProps> = ({
   const handleClick = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.play();
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("Audio play interrupted:", err);
+        });
+      }
     }
-    if (onClick) {
-      onClick();
-    }
+    onClick?.();
   };
 
   return (
@@ -32,7 +35,7 @@ export const PressableButton: React.FC<PressableButtonProps> = ({
       style={{ ["--color" as any]: color }}
       onClick={handleClick}
     >
-      <audio ref={audioRef} src="/click1.mp3" />
+      <audio ref={audioRef} src="/click1.mp3" preload="auto" />
 
       <Image
         className="base"
