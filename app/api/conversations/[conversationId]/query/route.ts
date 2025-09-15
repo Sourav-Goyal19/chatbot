@@ -2,25 +2,21 @@ import { z } from "zod";
 import LLMS from "@/lib/llms";
 import { generateText } from "ai";
 import client from "@/lib/prismadb";
+import Parsers from "@/lib/parsers";
 import { memories } from "@/lib/mem0";
 import { google } from "@ai-sdk/google";
 import { chatbot } from "./query-graph";
 import { vectorStore } from "@/lib/pinecone";
+import { summaryPrompt } from "@/lib/prompts";
 import { currentUser } from "@clerk/nextjs/server";
 import { Document } from "@langchain/core/documents";
 import { convertToHistoryMessages } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
-import { JsonOutputParser } from "@langchain/core/output_parsers";
-import {
-  ChatPromptTemplate,
-  MessagesPlaceholder,
-} from "@langchain/core/prompts";
 import {
   AIMessage,
   BaseMessage,
   ToolMessage,
   HumanMessage,
-  SystemMessage,
   AIMessageChunk,
 } from "@langchain/core/messages";
 
@@ -220,6 +216,11 @@ export async function POST(
               versions: {
                 push: [vg.messages[0].id, aiMessage.id],
               },
+              conversation: {
+                update: {
+                  updatedAt: new Date(),
+                },
+              },
             },
           });
 
@@ -266,29 +267,7 @@ async function generateSummary(
   history: BaseMessage[]
 ) {
   try {
-    const prompt = ChatPromptTemplate.fromMessages([
-      new SystemMessage(`You are an expert conversation summarizer. 
-      Your job is to maintain a running summary of this conversation for long-context use by another LLM. 
-      When updating the summary, do not repeat the entire conversation. Instead, merge new information with the previous summary. 
-
-      Guidelines:
-      - Keep the summary concise (max 400 words). 
-      - Preserve important details: facts, decisions, user constraints, and user preferences. 
-      - Ignore small talk, filler, or irrelevant messages. 
-      - Maintain clarity so another LLM can quickly understand the state of the conversation. 
-      - Always output valid JSON with the exact schema below.
-
-      Output format:
-      {
-        "summary": "<updated_summary_here>"
-      }
-
-      Here is the previous summary of this conversation:
-      <summary>{summary}</summary>`),
-      new MessagesPlaceholder("conversation"),
-    ]);
-
-    const summaryChain = prompt.pipe(LLMS.gptoss).pipe(new JsonOutputParser());
+    const summaryChain = summaryPrompt.pipe(LLMS.gptoss).pipe(Parsers.json);
 
     const res: any = await summaryChain.invoke({
       conversation: history,

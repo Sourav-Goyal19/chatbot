@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
         userId: user.id,
       },
       orderBy: {
-        createdAt: "desc",
+        updatedAt: "desc",
       },
     });
 

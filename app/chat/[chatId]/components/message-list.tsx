@@ -1,7 +1,8 @@
 import React from "react";
+import axios from "axios";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
-import { Copy } from "lucide-react";
+import { Copy, Trash } from "lucide-react";
 import { ToolDropdown } from "./tool-dropdown";
 import { Button } from "@/components/ui/button";
 import { MessageType, ToolMessageType } from "@/types";
@@ -100,6 +101,24 @@ export const MessageList: React.FC<MessageListProps> = ({
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
+                  {/* {message.role == "user" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0",
+                        "hover:bg-destructive rounded-[var(--radius-sm)]"
+                      )}
+                      onClick={async () => {
+                        await axios.delete(
+                          `/api/versiongroup/${message.versionGroupId}`
+                        );
+                        toast.success("Message Deleted Succesfully.");
+                      }}
+                    >
+                      <Trash className="h-3 w-3" />
+                    </Button>
+                  )} */}
                 </div>
               </div>
             </div>

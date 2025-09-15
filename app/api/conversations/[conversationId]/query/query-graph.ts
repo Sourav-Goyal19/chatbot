@@ -1,10 +1,9 @@
-import { z } from "zod";
 import LLMS from "@/lib/llms";
+import Parsers from "@/lib/parsers";
 import { v4 as uuidV4 } from "uuid";
-import { queryPrompt } from "@/lib/prompts";
-import { embeddings } from "@/lib/embeddings";
-import { tool } from "@langchain/core/tools";
-import { TavilySearch } from "@langchain/tavily";
+import { RunnableLambda } from "@langchain/core/runnables";
+import { queryPrompt, toolSuggestionPrompt } from "@/lib/prompts";
+import { calculatorTool, searchTool, vectorSearchTool } from "./tools";
 import { START, StateGraph, END, Annotation } from "@langchain/langgraph";
 import {
   AIMessage,
@@ -12,8 +11,6 @@ import {
   ToolMessage,
   HumanMessage,
 } from "@langchain/core/messages";
-import { retriever } from "@/lib/pinecone";
-import { RunnableConfig } from "@langchain/core/runnables";
 
 const BotGraphStateSchema = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
@@ -24,76 +21,63 @@ const BotGraphStateSchema = Annotation.Root({
 
 type BotGraphState = typeof BotGraphStateSchema.State;
 
-const calculatorTool = tool(
-  (input) => {
-    const typedInput = input as { a: number; b: number; operator: string };
-
-    if (typedInput.operator == "+") {
-      return typedInput.a + typedInput.b;
-    } else if (typedInput.operator == "-") {
-      return typedInput.a - typedInput.b;
-    } else if (typedInput.operator == "/") {
-      return typedInput.a / typedInput.b;
-    } else {
-      return typedInput.a * typedInput.b;
-    }
-  },
-  {
-    name: "calculator",
-    schema: z.object({
-      a: z.number().describe("First operand"),
-      b: z.number().describe("Second operand"),
-      operator: z.string().max(1).describe("operator"),
-    }),
-    description:
-      "Performs multiplication, addition, division, and subtraction between two any operands.",
-  }
-);
-
-const searchTool = new TavilySearch({
-  tavilyApiKey: process.env.TAVILY_API_KEY,
-});
-
-const vectorToolSchema = z.object({
-  query: z.string().min(1, "Query is required"),
-});
-
-const vectorSearchTool = tool(
-  async (input, config: RunnableConfig) => {
-    const typedInput = input as { query: string };
-
-    const conversationId = config?.configurable?.thread_id;
-
-    if (!conversationId) {
-      throw new Error("Missing conversationId for vector search");
-    }
-
-    const documents = await retriever.invoke(typedInput.query, {
-      metadata: {
-        conversationId,
-      },
-    });
-    return documents.map((doc) => doc.pageContent);
-  },
-  {
-    name: "vector_search",
-    description:
-      "Searches similar vectors from the current conversation's vector DB entries. Returns the top 3 relevant results. Takes the query in parameters.",
-    schema: vectorToolSchema,
-  }
-);
-
 const toolsList = [calculatorTool, searchTool, vectorSearchTool];
 
 const llmWithTools = LLMS.moonshotai.bindTools(toolsList);
 
-const toolsObj = {
-  calculator: calculatorTool,
-  tavily_search: searchTool,
-  vector_search: vectorSearchTool,
+const toolsByName = {
+  [calculatorTool.name]: calculatorTool,
+  [searchTool.name]: searchTool,
+  [vectorSearchTool.name]: vectorSearchTool,
 };
 
+const toolsWithDescription = toolsList.map((tl) => ({
+  name: tl.name,
+  description: tl.description,
+}));
+
 const queryChain = queryPrompt.pipe(llmWithTools);
+
+async function toolSuggestionNode(state: BotGraphState) {
+  const messages = state.messages;
+  const toolSuggestionChain = toolSuggestionPrompt
+    .pipe(LLMS.gptoss)
+    .pipe(Parsers.json);
+
+  const result = await toolSuggestionChain.invoke({
+    history: messages,
+    tools: toolsWithDescription,
+  });
+
+  // console.log(result);
+
+  // const lastMessage = messages[messages.length - 1].content;
+
+  let content = "";
+  if (result.suggested_tools.length > 0) {
+    content = `
+        Suggested Tools: ${result.suggested_tools}
+        Description: ${result.description}
+        `;
+  } else {
+    content = "No Suggestion for any tool";
+  }
+
+  // const updatedMessages = [
+  //   ...messages.slice(0, -1),
+  //   new HumanMessage({ content: lastMessage + "\n\n" + content }),
+  // ] as BaseMessage[];
+
+  state.messages = [
+    new ToolMessage({
+      content,
+      tool_call_id: "suggestor tool",
+      name: "suggestor",
+    }),
+  ];
+
+  return state;
+}
 
 async function chatNode(state: BotGraphState) {
   // console.log("Reached to chat node");
@@ -115,19 +99,14 @@ async function toolNode(state: BotGraphState) {
     const toolResults: ToolMessage[] = [];
 
     for (const tl of lastMessage.tool_calls) {
-      if (tl.name in toolsObj) {
+      if (tl.name in toolsByName) {
         try {
           // @ts-ignore
-          const toolResponse: ToolMessage = await toolsObj[tl.name].invoke(
-            tl.args
+          const toolResponse: ToolMessage = await toolsByName[tl.name].invoke(
+            tl
           );
-          toolResults.push(
-            new ToolMessage({
-              content: JSON.stringify(toolResponse),
-              tool_call_id: tl.id || uuidV4(),
-              name: tl.name,
-            })
-          );
+          // console.log(toolResponse);
+          toolResults.push(toolResponse);
         } catch (error) {
           toolResults.push(
             new ToolMessage({
@@ -158,9 +137,16 @@ async function shouldUseTool(state: BotGraphState) {
 }
 
 const graph = new StateGraph(BotGraphStateSchema)
+  .addNode(
+    "toolSuggestionNode",
+    RunnableLambda.from(toolSuggestionNode).withConfig({
+      tags: ["nostream"],
+    })
+  )
   .addNode("chatNode", chatNode)
   .addNode("toolNode", toolNode)
-  .addEdge(START, "chatNode")
+  .addEdge(START, "toolSuggestionNode")
+  .addEdge("toolSuggestionNode", "chatNode")
   .addConditionalEdges("chatNode", shouldUseTool)
   .addEdge("toolNode", "chatNode");
 
